@@ -82,9 +82,14 @@ python -m eval.run_eval compare vector_paragraph hybrid_paragraph hybrid_fixed
 
 ## Deploy (Hugging Face Spaces + Qdrant Cloud)
 
-1. Create a free Qdrant Cloud cluster; index into it from your machine (`QDRANT_URL`, `QDRANT_API_KEY` in `.env`).
-2. Create a Space with SDK **Docker**; add `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `QDRANT_URL`, `QDRANT_API_KEY`, `COLLECTION` as **secrets**.
-3. Push this repository to the Space. On start the app reads all chunks from Qdrant and builds BM25 in memory, so a restart loses nothing.
+1. Create a free Qdrant Cloud cluster and put `QDRANT_URL`, `QDRANT_API_KEY` in `.env`.
+2. Index locally, then copy the ready vectors to the cloud (no second embedding pass):
+   `python -m scripts.copy_collection --collection documents_paragraph`
+3. `hf auth login` (write token), then `python -m scripts.deploy_space --space <user>/investigation-engine`.
+   The script creates a Docker Space, stores `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `QDRANT_URL`,
+   `QDRANT_API_KEY`, `COLLECTION` as Space **secrets** and uploads the code (`upload_folder`, because Spaces
+   reject binary files pushed with plain git).
+4. On start the app reads all chunks from Qdrant and builds BM25 in memory, so a restart loses nothing.
 
 ## API
 

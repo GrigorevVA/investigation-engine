@@ -1,0 +1,11 @@
+.env
+.git
+.venv
+venv
+__pycache__
+.pytest_cache
+data/qdrant
+data/qdrant_subset
+data/raw
+data/*.jsonl
+data/*.log
