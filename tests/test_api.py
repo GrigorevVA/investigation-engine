@@ -89,3 +89,8 @@ def test_health(api):
 def test_ui_page_is_served(api):
     r = api.get("/")
     assert r.status_code == 200 and "AI Investigation Engine" in r.text
+
+
+def test_ping_does_not_need_the_engine():
+    from fastapi.testclient import TestClient as Client
+    assert Client(app).get("/api/ping").json() == {"status": "ok"}

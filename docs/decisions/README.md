@@ -12,3 +12,4 @@ a changed decision gets a new record that supersedes the old one. Read these bef
 | [0005](0005-openai-compatible-llm.md) | Any OpenAI-compatible LLM, chosen by config | accepted |
 | [0006](0006-citation-labels.md) | Short chunk labels and server-side citation check | accepted |
 | [0007](0007-groq-gpt-oss-120b.md) | Groq `openai/gpt-oss-120b` as the default model | accepted |
+| [0008](0008-render-free-512mb.md) | Render free web service; fit the app in 512 MB (no Gradio, compact BM25) | accepted |

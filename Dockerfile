@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Hugging Face Spaces runs the container as user 1000
+# Run as a non-root user
 RUN useradd -m -u 1000 user
 USER user
 ENV HOME=/home/user PATH=/home/user/.local/bin:$PATH PYTHONUNBUFFERED=1 \
@@ -15,4 +15,5 @@ RUN python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-smal
 
 COPY --chown=user . .
 EXPOSE 7860
-CMD ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "7860"]
+# Render passes the port in $PORT; 7860 is the local default
+CMD ["sh", "-c", "uvicorn app.api.main:app --host 0.0.0.0 --port ${PORT:-7860}"]

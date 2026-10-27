@@ -1,0 +1,20 @@
+# Render Blueprint: New -> Blueprint -> pick this repository. Secrets (sync: false) are asked for in the dashboard.
+services:
+  - type: web
+    name: investigation-engine
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/ping
+    envVars:
+      - key: LLM_API_KEY
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: LLM_MODEL
+        value: qwen/qwen3.8-27b
+      - key: COLLECTION
+        value: documents_paragraph

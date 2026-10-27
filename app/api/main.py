@@ -1,5 +1,7 @@
 """HTTP API. Run: uvicorn app.api.main:app --port 7860  (UI at /, API docs at /docs)."""
 import logging
+import threading
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 
@@ -18,7 +20,15 @@ logging.getLogger("httpx").setLevel(logging.WARNING)  # one INFO line per Qdrant
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 UI_PAGE = Path(__file__).parent.parent / "ui" / "index.html"
 
-app = FastAPI(title="AI Investigation Engine", version="1.0")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Start loading the index at boot, in the background, so the first visitor does not wait for it
+    # and the platform health check (/api/ping) passes while it loads.
+    threading.Thread(target=get_engine, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="AI Investigation Engine", version="1.0", lifespan=lifespan)
 
 
 @lru_cache
@@ -50,6 +60,12 @@ def _llm_error(_, err: LLMError) -> JSONResponse:
 @app.exception_handler(VectorStoreError)
 def _store_down(_, err: VectorStoreError) -> JSONResponse:
     return JSONResponse(status_code=503, content={"detail": str(err)})
+
+
+@app.get("/api/ping")
+def ping() -> dict:
+    """Liveness for the hosting platform: answers at once, even while the index is loading."""
+    return {"status": "ok"}
 
 
 @app.get("/api/health")

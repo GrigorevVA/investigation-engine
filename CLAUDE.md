@@ -18,7 +18,7 @@
 8. Текущее состояние: BM25Index, reciprocal_rank_fusion и метрики реализованы, pytest зелёный (72). Дальше: данные, индексация, eval, деплой.
 
 ## Стек
-Python 3.11 · FastAPI · Gradio · Qdrant Cloud · bge-small через fastembed (локально) · любой OpenAI-совместимый LLM (Groq или Gemini) · pytest · Docker · Hugging Face Spaces.
+Python 3.11 · FastAPI + HTML-страница (без Gradio, ADR 0008) · Qdrant Cloud · bge-small через fastembed (локально) · любой OpenAI-совместимый LLM (Groq) · pytest · Docker · Render free (512 МБ).
 Без LangChain и LlamaIndex: весь RAG поток виден в своём коде.
 
 ## Код
