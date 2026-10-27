@@ -20,7 +20,10 @@ class FakeLLM:
 
     def chat(self, messages, tools=None, json_mode=False, temperature=0.0) -> dict:
         self.calls.append({"messages": messages, "tools": tools, "json_mode": json_mode})
-        return self.replies.pop(0)
+        reply = self.replies.pop(0)
+        if isinstance(reply, Exception):  # script a provider error
+            raise reply
+        return reply
 
     def chat_json(self, messages, temperature=0.0) -> dict:
         import json

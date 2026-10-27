@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from app.rag.llm import LLMClient, LLMError, LLMUnavailable, parse_json
+from app.rag.llm import LLMClient, LLMError, LLMUnavailable, ToolUseFailed, parse_json
 from app.retry import backoff_delay
 
 OK = {"choices": [{"message": {"role": "assistant", "content": '{"a": 1}'}}]}
@@ -80,3 +80,11 @@ def test_parse_json_tolerates_wrappers(text):
 def test_parse_json_rejects_garbage():
     with pytest.raises(ValueError):
         parse_json("no json here")
+
+
+def test_groq_tool_use_failed_is_a_distinct_error():
+    body = '{"error":{"message":"attempted to call tool \'json\'","code":"tool_use_failed"}}'
+    c, sleeps = client(lambda request: httpx.Response(400, text=body))
+    with pytest.raises(ToolUseFailed):
+        c.chat([{"role": "user", "content": "hi"}])
+    assert sleeps == []  # not retried

@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     # LLM: any OpenAI-compatible chat endpoint (Groq, Gemini, OpenRouter...)
     llm_base_url: str = "https://api.groq.com/openai/v1"
     llm_api_key: str = ""
-    llm_model: str = "llama-3.3-70b-versatile"
+    llm_model: str = "openai/gpt-oss-120b"
     llm_timeout_s: float = 30.0
     llm_max_retries: int = 4
     llm_backoff_base_s: float = 1.0

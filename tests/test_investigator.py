@@ -3,6 +3,7 @@ import json
 
 from app.ingest.pipeline import IngestPipeline
 from app.rag.answer import Investigator
+from app.rag.llm import ToolUseFailed
 from app.search.hybrid import HybridSearcher
 from tests.conftest import FakeLLM, make_doc
 
@@ -91,3 +92,10 @@ def test_empty_collection_refuses_without_answer_call(store, embedder):
     inv = Investigator(llm, HybridSearcher(store, embedder, bm25=None), mode="vector")
     result = inv.investigate("Anything?")
     assert result.insufficient_evidence and len(llm.calls) == 1
+
+
+def test_malformed_tool_call_falls_back_to_json_answer(store, embedder):
+    inv, llm = setup(store, embedder, [plan(), ToolUseFailed("tool_use_failed"), final("2014 [C1].", ["C1"])])
+    result = inv.investigate("When was Lumora founded?")
+    assert [c.label for c in result.citations] == ["C1"]
+    assert llm.calls[2]["tools"] is None and llm.calls[2]["json_mode"]  # retried without tools

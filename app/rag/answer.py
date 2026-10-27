@@ -4,7 +4,7 @@ import logging
 from dataclasses import asdict, dataclass, field
 
 from app.models import Chunk, SearchHit
-from app.rag.llm import LLMClient, parse_json
+from app.rag.llm import LLMClient, ToolUseFailed, parse_json
 from app.rag.planner import plan_queries
 from app.rag.prompts import ANSWER_SYSTEM, ANSWER_USER
 from app.rag.tools import TOOLS, parse_tool_call
@@ -95,7 +95,11 @@ class Investigator:
     def _answer_loop(self, messages: list[dict], context: Context, queries: list[str]) -> dict:
         for round_no in range(self.max_tool_rounds + 1):
             allow_tools = round_no < self.max_tool_rounds
-            message = self.llm.chat(messages, tools=TOOLS if allow_tools else None)
+            try:
+                message = self.llm.chat(messages, tools=TOOLS if allow_tools else None)
+            except ToolUseFailed:
+                log.warning("Model sent a malformed tool call, asking for the final JSON without tools")
+                return self.llm.chat_json(messages)
             tool_calls = message.get("tool_calls") or []
             if not tool_calls or not allow_tools:
                 return self._parse_answer(message, messages)

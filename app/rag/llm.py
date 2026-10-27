@@ -18,6 +18,11 @@ class LLMUnavailable(LLMError):
     """The provider is down, slow or rate limiting us after all retries."""
 
 
+class ToolUseFailed(LLMError):
+    """The model produced a malformed tool call (Groq: 400 tool_use_failed).
+    Seen with gpt-oss-120b: it 'calls' a tool named json to return its final answer."""
+
+
 class LLMClient:
     def __init__(self, base_url: str, api_key: str, model: str, timeout_s: float = 30.0,
                  max_retries: int = 4, backoff_base_s: float = 1.0,
@@ -66,6 +71,8 @@ class LLMClient:
             raise RetryableError(f"{type(err).__name__}: {err}") from err
         if response.status_code in RETRY_STATUSES:
             raise RetryableError(f"HTTP {response.status_code}", _retry_after(response))
+        if response.status_code == 400 and "tool_use_failed" in response.text:
+            raise ToolUseFailed(f"HTTP 400: {response.text[:300]}")
         if response.status_code >= 400:
             raise LLMError(f"HTTP {response.status_code}: {response.text[:300]}")
         return response.json()
