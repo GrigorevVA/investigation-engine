@@ -1,0 +1,12 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/raw/
+data/qdrant/
+data/corpus.jsonl
+data/hotpot_questions.jsonl
+.idea/
+.cache/
