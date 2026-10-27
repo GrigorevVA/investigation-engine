@@ -1,38 +1,38 @@
 # CLAUDE.md — AI Investigation Engine
 
-Правила для AI ассистента в этом репозитории. Читать перед каждой задачей.
+Rules for the AI assistant in this repository. Read before every task.
 
-## Контекст
-- Тестовое задание Upgaming Talent Growth Program, Applied AI. Сдача 29 октября 2026.
-- Автор защищает код на собеседовании БЕЗ AI. Всё, что ты пишешь, он должен понять и уметь переписать сам.
-- Автор: QA инженер, Python знает на базовом уровне. Объясняй по-русски, просто, с аналогиями.
+## Context
+- Take-home task for the Upgaming Talent Growth Program, Applied AI. Due 29 October 2026.
+- The author defends the code at an interview WITHOUT AI. Everything you write, the author must understand and be able to rewrite.
+- The author is a QA engineer with basic Python. Explain in Russian, simply, with analogies (the repository itself is in English).
 
-## Как работать
-1. Один модуль за раз. Порядок: что делаем и зачем → код → построчный разбор → 3 вопроса «а что будет, если…» как на защите.
-2. BM25, RRF и метрики оценки (Recall@K, MRR, Citation Accuracy) изначально должен был писать автор. 2026-10-27 автор поручил их AI из-за дедлайна. Теперь к каждому такому коду обязательны построчный разбор и вопросы для защиты.
-3. Не выдумывай. Версии библиотек, лимиты тарифов и API проверяй или помечай как открытый вопрос.
-4. После каждого заметного шага добавляй запись в docs/AI_USAGE.md: что просили, что дал AI, что автор изменил сам.
-5. Не добавляй бонусы задания, пока не закрыт весь обязательный чек-лист.
-6. Перед изменением архитектуры прочитай docs/decisions. Новое решение оформляй новым ADR, старые не переписывай.
-7. «Готово» подтверждается диффом и зелёным тестом на каждое требование из README (таблица Requirements coverage), а не отчётом агента.
-8. Текущее состояние: BM25Index, reciprocal_rank_fusion и метрики реализованы, pytest зелёный (72). Дальше: данные, индексация, eval, деплой.
+## How to work
+1. One module at a time. Order: what and why → code → line-by-line walkthrough → 3 "what happens if..." questions, as at the defence.
+2. BM25, RRF and the evaluation metrics (Recall@K, MRR, Citation Accuracy) were originally the author's to write. On 2026-10-27 the author delegated them to the AI because of the deadline. Every such piece of code now needs a line-by-line walkthrough and defence questions.
+3. Do not make things up. Check library versions, tier limits and APIs, or mark them as an open question.
+4. After every notable step add an entry to docs/AI_USAGE.md: what was asked, what the AI produced, what the author changed.
+5. Do not add bonus features until the whole mandatory checklist is closed.
+6. Before changing the architecture read docs/decisions. Record a new decision as a new ADR; never rewrite old ones.
+7. "Done" is proven by a diff and a green test for each requirement in the README (Requirements coverage table), not by an agent's report.
+8. Current state: everything mandatory is implemented, deployed (Render) and documented; pytest is green. Next: defence preparation with docs/WALKTHROUGH.md.
 
-## Стек
-Python 3.11 · FastAPI + HTML-страница (без Gradio, ADR 0008) · Qdrant Cloud · bge-small через fastembed (локально) · любой OpenAI-совместимый LLM (Groq) · pytest · Docker · Render free (512 МБ).
-Без LangChain и LlamaIndex: весь RAG поток виден в своём коде.
+## Stack
+Python 3.11 · FastAPI + an HTML page (no Gradio, ADR 0008) · Qdrant Cloud · bge-small via fastembed (local) · any OpenAI-compatible LLM (Groq, qwen/qwen3.8-27b, ADR 0009) · pytest · Docker · Render free (512 MB).
+No LangChain or LlamaIndex: the whole RAG flow is visible in our own code.
 
-## Код
-- Type hints везде, функции короче 40 строк, одна ответственность на модуль.
-- Структура: app/ingest, app/search, app/rag, app/api, app/ui, scripts, eval, tests, docs.
-- Все промпты в app/rag/prompts.py, все настройки в app/config.py из .env.
-- Секреты только в .env и в секретах хостинга. Никогда в коде и в git.
-- Ошибки внешних сервисов (LLM, Qdrant) ловятся в llm.py и vector_store.py: таймаут, повтор с экспоненциальной паузой, понятное сообщение наружу.
-- Ответ LLM всегда структурированный JSON: answer, citations, contradictions, insufficient_evidence.
-- Каждый модуль с тестом в tests/. Внешние API в тестах подменяются моками.
-- Любое число в отчётах берётся из прогона eval/run_eval.py.
-- Маленькие коммиты, по одному на задачу.
+## Code
+- Type hints everywhere, functions under 40 lines, one responsibility per module.
+- Layout: app/ingest, app/search, app/rag, app/api, app/ui, scripts, eval, tests, docs.
+- All prompts in app/rag/prompts.py, all settings in app/config.py from .env.
+- Secrets only in .env and the hosting secrets. Never in code or git.
+- External service errors (LLM, Qdrant) are handled in llm.py and vector_store.py: timeout, retry with exponential backoff, clear message to the caller.
+- The LLM answer is always structured JSON: answer, citations, contradictions, insufficient_evidence.
+- Every module has a test in tests/. External APIs are mocked in tests.
+- Every number in reports comes from a run of eval/run_eval.py.
+- Small commits, one per task.
 
-## Проверка перед «готово»
-- pytest зелёный.
-- Код запускается командой из README.
-- Автор может ответить на 3 контрольных вопроса по модулю без подсказок.
+## Check before "done"
+- pytest is green.
+- The code runs with the command from the README.
+- The author can answer the 3 check questions on the module without hints.
