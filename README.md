@@ -99,6 +99,27 @@ was cut down from ~625 MB to a measured ~407 MB peak to fit Render's 512 MB ([AD
 | POST | `/api/search` | `{"query", "k", "mode"}` raw retrieval |
 | POST | `/api/ask` | `{"question", "mode"}` full investigation |
 
+## Performance and cost
+
+Measured on 2026-10-27 (laptop: Intel i5-10210U, 8 GB RAM; host: Render free, 512 MB).
+
+| What | Measured |
+|---|---|
+| Answer time, live demo | 7–14 s per question (3 questions through the public URL); 2–4 LLM calls each: plan, answer, up to 2 search-tool rounds |
+| Index load at start | ~37 s locally from Qdrant Cloud (78,006 chunks); about 1 minute on Render (503 "loading" at 19:17:47, ready at 19:18:48) |
+| BM25 | build 5.5 s for 66,581 chunks; 3 searches in ~3 ms; ~40 MB as numpy CSR arrays |
+| Memory | peak 407 MB with the full collection (was ~625 MB before ADR 0008) |
+| Embeddings (indexing, laptop CPU) | 12.5 docs/s with length-sorted batches; full corpus ~90 minutes, done once, vectors copied to Qdrant Cloud |
+| Qdrant Cloud | 78,006 points × 384 dimensions on the free cluster |
+| Money | $0: every component runs on a free tier |
+
+LLM limits (Groq free tier, from response headers): 8,000 tokens per minute, 1,000 requests.
+A longer-window token limit also exists: after two full 44-question runs Groq answered 429 with
+`Retry-After: 606` seconds. The client honours Retry-After, and the API reports 503 with a clear message instead of hanging.
+**Open question:** tokens per question were not measured, because that run hit this limit; the formula for a paid tier is
+`questions × LLM calls × (prompt + completion tokens) × price per token`. The prompt is dominated by up to 12 context chunks.
+To cut LLM cost: fewer context chunks, skip the planner for one-hop questions, cache answers to repeated questions.
+
 ## Privacy
 
 Embeddings are computed locally, so indexing sends nothing outside. At question time only the retrieved
