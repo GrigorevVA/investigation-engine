@@ -144,9 +144,10 @@ class Engine:
         return self.searcher().search(query, k or self.settings.top_k, mode or self.settings.search_mode)
 
     def investigate(self, question: str, mode: str | None = None) -> InvestigationResult:
-        s = self.settings
-        investigator = Investigator(self.llm, self.searcher(), s.top_k, mode or s.search_mode,
-                                    s.max_subquestions, s.max_context_chunks, s.max_tool_rounds)
+        settings = self.settings
+        investigator = Investigator(self.llm, self.searcher(), settings.top_k, mode or settings.search_mode,
+                                    settings.max_subquestions, settings.max_context_chunks,
+                                    settings.max_tool_rounds)
         return investigator.investigate(question)
 
 

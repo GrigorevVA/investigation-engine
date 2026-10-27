@@ -57,11 +57,12 @@ class Context:
         return new_labels
 
     def render(self, labels: list[str]) -> str:
-        return "\n\n".join(f"[{l}] (document: {self.by_label[l].title})\n{self.by_label[l].text}" for l in labels)
+        return "\n\n".join(f"[{label}] (document: {self.by_label[label].title})\n{self.by_label[label].text}"
+                           for label in labels)
 
     def citation(self, label: str) -> Citation:
-        c = self.by_label[label]
-        return Citation(label, c.chunk_id, c.doc_id, c.title, c.text[:300])
+        chunk = self.by_label[label]
+        return Citation(label, chunk.chunk_id, chunk.doc_id, chunk.title, chunk.text[:300])
 
 
 class Investigator:
@@ -144,10 +145,10 @@ class Investigator:
             question=question,
             answer=str(raw.get("answer", "")).strip() or "No answer was produced.",
             insufficient_evidence=insufficient,
-            citations=[context.citation(l) for l in labels],
+            citations=[context.citation(label) for label in labels],
             contradictions=contradictions,
             queries=queries,
-            retrieved=[context.citation(l) for l in context.by_label],
+            retrieved=[context.citation(label) for label in context.by_label],
             notes=notes,
         )
 

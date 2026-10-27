@@ -78,8 +78,8 @@ class BM25Index:
         return len(self.chunks)
 
     def idf(self, term: str) -> float:
-        t = self.vocab.get(term)
-        df = 0 if t is None else int(self.offsets[t + 1] - self.offsets[t])
+        term_id = self.vocab.get(term)
+        df = 0 if term_id is None else int(self.offsets[term_id + 1] - self.offsets[term_id])
         n = len(self.chunks)
         return float(np.log((n - df + 0.5) / (df + 0.5) + 1))
 
@@ -89,11 +89,12 @@ class BM25Index:
             return []
         scores = np.zeros(len(self.chunks))
         for term in set(tokenize(query)):
-            t = self.vocab.get(term)
-            if t is None:
+            term_id = self.vocab.get(term)
+            if term_id is None:
                 continue
-            docs = self.doc_ids[self.offsets[t]:self.offsets[t + 1]]
-            tf = self.tfs[self.offsets[t]:self.offsets[t + 1]].astype(np.float64)
+            start, end = self.offsets[term_id], self.offsets[term_id + 1]
+            docs = self.doc_ids[start:end]
+            tf = self.tfs[start:end].astype(np.float64)
             scores[docs] += self.idf(term) * tf * (self.k1 + 1) / (tf + self.norm[docs])
         found = np.flatnonzero(scores > 0)
         if len(found) > k:  # partial sort: only the k best need ordering

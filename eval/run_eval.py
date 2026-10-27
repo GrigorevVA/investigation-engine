@@ -96,13 +96,21 @@ def summarize(rows: list[dict]) -> dict:
         if values:
             summary["MRR" if key == "rr" else key] = round(mean(values), 3)
     by_type: dict[str, list[dict]] = {}
-    for r in rows:
-        by_type.setdefault(r["type"], []).append(r)
-    summary["by_type"] = {t: {k: round(mean(v[k] for v in rs if v.get(k) is not None), 3)
-                              for k in ("recall@10", "contains_ref", "abstention_correct")
-                              if any(v.get(k) is not None for v in rs)} | {"n": len(rs)}
-                          for t, rs in by_type.items()}
+    for row in rows:
+        by_type.setdefault(row["type"], []).append(row)
+    summary["by_type"] = {qtype: _type_summary(type_rows) for qtype, type_rows in by_type.items()}
     return summary
+
+
+def _type_summary(type_rows: list[dict]) -> dict:
+    """Mean of the main metrics over the questions of one type, plus their count."""
+    result: dict = {}
+    for metric in ("recall@10", "contains_ref", "abstention_correct"):
+        values = [row[metric] for row in type_rows if row.get(metric) is not None]
+        if values:
+            result[metric] = round(mean(values), 3)
+    result["n"] = len(type_rows)
+    return result
 
 
 def run(args: argparse.Namespace) -> None:
@@ -143,20 +151,20 @@ def compare(names: list[str]) -> None:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser()
-    sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("build")
-    r = sub.add_parser("run")
-    r.add_argument("--name", required=True)
-    r.add_argument("--collection", default=get_settings().collection)
-    r.add_argument("--mode", choices=["vector", "bm25", "hybrid"], default="hybrid")
-    r.add_argument("--retrieval-only", action="store_true")
-    r.add_argument("--judge", action="store_true", help="also grade answers with the LLM")
-    r.add_argument("--limit", type=int, default=None)
-    r.add_argument("--sleep", type=float, default=2.0)
-    c = sub.add_parser("compare")
-    c.add_argument("names", nargs="+")
-    args = p.parse_args()
+    parser = argparse.ArgumentParser()
+    commands = parser.add_subparsers(dest="cmd", required=True)
+    commands.add_parser("build")
+    run_parser = commands.add_parser("run")
+    run_parser.add_argument("--name", required=True)
+    run_parser.add_argument("--collection", default=get_settings().collection)
+    run_parser.add_argument("--mode", choices=["vector", "bm25", "hybrid"], default="hybrid")
+    run_parser.add_argument("--retrieval-only", action="store_true")
+    run_parser.add_argument("--judge", action="store_true", help="also grade answers with the LLM")
+    run_parser.add_argument("--limit", type=int, default=None)
+    run_parser.add_argument("--sleep", type=float, default=2.0)
+    compare_parser = commands.add_parser("compare")
+    compare_parser.add_argument("names", nargs="+")
+    args = parser.parse_args()
     if args.cmd == "build":
         build_questions()
     elif args.cmd == "run":
