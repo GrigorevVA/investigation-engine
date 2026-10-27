@@ -27,6 +27,8 @@ Update after every notable step.
 | 2026-10-27 | Project skeleton | Loaders, chunking, dedup, pipeline, Qdrant wrapper, LLM client with retries, planner, answer loop with tool calling, FastAPI, Gradio UI, scripts, 72 tests (17 of them a spec for the author's algorithms), ADRs | _fill in_ |
 | 2026-10-27 | Implement BM25, RRF, metrics (author's decision to delegate) | `BM25Index` with an inverted index, `reciprocal_rank_fusion`, `recall_at_k`, `reciprocal_rank`, `citation_accuracy`; all 17 spec tests green | _author: line-by-line review, answers to the defence questions_ |
 
+| 2026-10-27 | Get the data and index it | Switched the download to the Hugging Face copy (the CMU mirror no longer resolves); measured embedding speed (5–7 docs/s on an i5-10210U) and added length-sorted batching (12.5 docs/s); reproducible 10k subset for the chunking comparison; local → Qdrant Cloud copy script | _fill in_ |
+
 ## Where AI was wrong or needed correction
 
 - The first fixed-size chunker started overlaps in the middle of a word; caught by `test_fixed_does_not_cut_words`, fixed.
