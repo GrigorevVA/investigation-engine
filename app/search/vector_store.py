@@ -54,8 +54,11 @@ class QdrantStore:
         except RetryableError as err:
             raise VectorStoreError(f"Qdrant is unavailable: {err}") from err
 
+    def exists(self) -> bool:
+        return self._call(lambda: self.client.collection_exists(self.collection))
+
     def ensure_collection(self) -> None:
-        if self._call(lambda: self.client.collection_exists(self.collection)):
+        if self.exists():
             return
         self._call(lambda: self.client.create_collection(
             self.collection,

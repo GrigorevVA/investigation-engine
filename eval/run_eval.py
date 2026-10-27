@@ -17,6 +17,7 @@ from app.config import get_settings
 from app.engine import build_engine
 from app.rag.llm import LLMUnavailable
 from app.rag.prompts import JUDGE_SYSTEM, JUDGE_USER
+from app.search.vector_store import QdrantStore
 from eval.metrics import (citation_accuracy, contains_reference, reciprocal_rank, recall_at_k, token_f1,
                           unique_in_order)
 
@@ -106,6 +107,11 @@ def summarize(rows: list[dict]) -> dict:
 
 def run(args: argparse.Namespace) -> None:
     settings = get_settings().model_copy(update={"collection": args.collection, "search_mode": args.mode})
+    print(f"Qdrant: {settings.qdrant_url or settings.qdrant_path}, collection {args.collection}", flush=True)
+    store = QdrantStore.from_settings(settings)
+    if not store.exists():  # check before build_engine, which would create an empty collection
+        raise SystemExit(f"Collection {args.collection!r} does not exist here: wrong QDRANT_URL / QDRANT_PATH?")
+    store.client.close()  # local Qdrant allows one client per folder
     engine = build_engine(settings)
     questions = read_jsonl(EVAL_DIR / "questions.jsonl")[: args.limit]
     RESULTS.mkdir(parents=True, exist_ok=True)

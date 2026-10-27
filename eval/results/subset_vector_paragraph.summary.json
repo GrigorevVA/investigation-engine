@@ -1,0 +1,38 @@
+{
+  "questions": 44,
+  "errors": 0,
+  "recall@5": 0.923,
+  "recall@10": 0.936,
+  "MRR": 0.979,
+  "by_type": {
+    "multi_hop": {
+      "recall@10": 0.861,
+      "n": 18
+    },
+    "comparison": {
+      "recall@10": 1.0,
+      "n": 10
+    },
+    "simple": {
+      "recall@10": 1.0,
+      "n": 6
+    },
+    "contradiction": {
+      "recall@10": 1.0,
+      "n": 4
+    },
+    "temporal": {
+      "recall@10": 1.0,
+      "n": 1
+    },
+    "unanswerable": {
+      "n": 5
+    }
+  },
+  "config": {
+    "collection": "subset_paragraph",
+    "mode": "vector",
+    "retrieval_only": true,
+    "model": "llama-3.3-70b-versatile"
+  }
+}
