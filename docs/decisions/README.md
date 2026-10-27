@@ -11,5 +11,6 @@ a changed decision gets a new record that supersedes the old one. Read these bef
 | [0004](0004-hybrid-bm25-rrf.md) | Hybrid retrieval: own BM25 + own RRF | accepted |
 | [0005](0005-openai-compatible-llm.md) | Any OpenAI-compatible LLM, chosen by config | accepted |
 | [0006](0006-citation-labels.md) | Short chunk labels and server-side citation check | accepted |
-| [0007](0007-groq-gpt-oss-120b.md) | Groq `openai/gpt-oss-120b` as the default model | accepted |
+| [0007](0007-groq-gpt-oss-120b.md) | Groq `openai/gpt-oss-120b` as the default model | superseded by 0009 |
 | [0008](0008-render-free-512mb.md) | Render free web service; fit the app in 512 MB (no Gradio, compact BM25) | accepted |
+| [0009](0009-default-model-qwen.md) | `qwen/qwen3.8-27b` as the default model, chosen by the evaluation | accepted |

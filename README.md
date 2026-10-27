@@ -5,7 +5,7 @@ collects evidence with hybrid retrieval (vector + own BM25, merged by own Recipr
 answers only from retrieved chunks with numbered citations, flags sources that contradict each other,
 and refuses when the evidence is not there.
 
-**Live demo:** _add the Render link here_ · **Evaluation:** [docs/EVALUATION.md](docs/EVALUATION.md) ·
+**Live demo:** https://investigation-engine-l74q.onrender.com (free tier: after idle it sleeps, the first request wakes it and the index loads for 1–2 minutes) · **Evaluation:** [docs/EVALUATION.md](docs/EVALUATION.md) ·
 **AI usage:** [docs/AI_USAGE.md](docs/AI_USAGE.md) · **Decisions:** [docs/decisions](docs/decisions)
 
 ## How it works
