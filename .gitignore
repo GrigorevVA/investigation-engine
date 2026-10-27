@@ -11,3 +11,5 @@ data/hotpot_questions.jsonl
 .idea/
 .cache/
 data/corpus_subset.jsonl
+data/qdrant_subset/
+data/*.log
