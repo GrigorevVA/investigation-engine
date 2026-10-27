@@ -2,7 +2,6 @@
 import logging
 import threading
 from contextlib import asynccontextmanager
-from functools import lru_cache
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
@@ -20,20 +19,42 @@ logging.getLogger("httpx").setLevel(logging.WARNING)  # one INFO line per Qdrant
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 UI_PAGE = Path(__file__).parent.parent / "ui" / "index.html"
 
+log = logging.getLogger(__name__)
+
+# One engine per process, built once in a background thread. A second concurrent build would hold
+# two BM25 indexes at once and get the process killed on a 512 MB host (seen on Render).
+_engine: Engine | None = None
+_engine_error: str | None = None
+_engine_lock = threading.Lock()
+
+
+def load_engine() -> None:
+    global _engine, _engine_error
+    with _engine_lock:
+        if _engine is not None:
+            return
+        try:
+            _engine = build_engine(get_settings())
+        except Exception as err:  # keep the API up and report the reason instead of crashing
+            _engine_error = f"{type(err).__name__}: {err}"
+            log.exception("Engine failed to start")
+
+
+def get_engine() -> Engine:
+    """Never builds the engine: while it loads, requests get 503 at once instead of starting a second build."""
+    if _engine is None:
+        raise HTTPException(503, _engine_error or "The index is still loading, try again in a minute.")
+    return _engine
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Start loading the index at boot, in the background, so the first visitor does not wait for it
-    # and the platform health check (/api/ping) passes while it loads.
-    threading.Thread(target=get_engine, daemon=True).start()
+    # Load the index at boot in the background; /api/ping answers meanwhile for the health check.
+    threading.Thread(target=load_engine, daemon=True).start()
     yield
 
 
 app = FastAPI(title="AI Investigation Engine", version="1.0", lifespan=lifespan)
-
-
-@lru_cache
-def get_engine() -> Engine:
-    return build_engine(get_settings())
 
 
 class SearchRequest(BaseModel):

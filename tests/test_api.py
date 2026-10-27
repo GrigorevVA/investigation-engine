@@ -94,3 +94,9 @@ def test_ui_page_is_served(api):
 def test_ping_does_not_need_the_engine():
     from fastapi.testclient import TestClient as Client
     assert Client(app).get("/api/ping").json() == {"status": "ok"}
+
+
+def test_requests_get_503_while_the_engine_loads():
+    from fastapi.testclient import TestClient as Client
+    r = Client(app).get("/api/health")  # no lifespan here, so the engine is never built
+    assert r.status_code == 503 and "loading" in r.json()["detail"]

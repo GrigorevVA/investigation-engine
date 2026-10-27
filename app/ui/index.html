@@ -121,7 +121,10 @@ async function loadStats() {
     const s = await api("/api/health");
     $("stats").textContent = `${s.documents.toLocaleString()} documents · ${s.chunks.toLocaleString()} chunks · ` +
       `model ${s.llm_model}` + (s.bm25_rebuilding ? " · keyword index rebuilding" : "");
-  } catch (e) { $("stats").textContent = "Index unavailable: " + e.message; }
+  } catch (e) {
+    $("stats").textContent = "Index unavailable: " + e.message + " Retrying in 10 s…";
+    setTimeout(loadStats, 10000);  // the free host loads the index for a minute or more after a start
+  }
 }
 
 EXAMPLES.forEach((q) => { const b = el("button", q, "link"); b.onclick = () => { $("question").value = q; }; $("examples").append(b); });
