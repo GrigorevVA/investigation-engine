@@ -1,6 +1,6 @@
 # AI Investigation Engine
 
-A retrieval-augmented investigation system over ~60,000 documents. It splits a question into searches,
+A retrieval-augmented investigation system over 66,589 documents (66,581 HotpotQA paragraphs + 8 synthetic files). It splits a question into searches,
 collects evidence with hybrid retrieval (vector + own BM25, merged by own Reciprocal Rank Fusion),
 answers only from retrieved chunks with numbered citations, flags sources that contradict each other,
 and refuses when the evidence is not there.
@@ -28,26 +28,26 @@ flowchart LR
 
 ## Requirements coverage
 
-| Requirement | Where |
-|---|---|
-| 3+ formats, text + metadata | `app/ingest/loaders.py` (TXT, MD, PDF, DOCX) |
-| Two chunking strategies, compared | `app/ingest/chunking.py`, results in `docs/EVALUATION.md` |
-| Deduplication, add / update / delete | `app/ingest/dedup.py`, `app/ingest/pipeline.py`, `PUT/DELETE /api/documents` |
-| Vector DB + embeddings | Qdrant (`app/search/vector_store.py`), bge-small via fastembed |
-| Hybrid search, own algorithm | own BM25 `app/search/bm25.py`, own RRF `app/search/hybrid.py` |
-| Multi-step reasoning, citations | `app/rag/planner.py`, `app/rag/answer.py` |
-| Contradictions, refusal | answer JSON + validation in `app/rag/answer.py` |
-| LLM error handling | timeouts, retries with backoff and Retry-After, 503 to the client: `app/rag/llm.py`, `app/retry.py` |
-| Tool calling | `search_documents` tool, `app/rag/tools.py` |
-| Own evaluation, 40+ questions | `eval/` (44 questions, Recall@K, MRR, correctness, citation accuracy, abstention) |
-| UI + backend | HTML + JS page served by FastAPI, one process (`app/ui/index.html`) |
-| 50,000+ documents | HotpotQA dev distractor paragraphs + synthetic documents |
-| Deployment, persistence, secrets | Render free web service (Docker, `render.yaml`) + Qdrant Cloud; keys in Render environment secrets ([ADR 0008](docs/decisions/0008-render-free-512mb.md)) |
+| Requirement | Where | Proof |
+|---|---|---|
+| 3+ formats, text + metadata | `app/ingest/loaders.py` (TXT, MD, PDF, DOCX) | `tests/test_loaders.py` (one test per format) |
+| Two chunking strategies, compared | `app/ingest/chunking.py` | `tests/test_chunking.py`; comparison in `docs/EVALUATION.md` |
+| Deduplication, add / update / delete | `app/ingest/dedup.py`, `app/ingest/pipeline.py`, `PUT/DELETE /api/documents` | `tests/test_pipeline.py`, `test_upload_list_update_delete`, `test_duplicate_upload` |
+| Vector DB + embeddings | Qdrant (`app/search/vector_store.py`), bge-small via fastembed | `test_vector_search_finds_matching_chunk`, `tests/test_embeddings.py` |
+| Hybrid search, own algorithm | own BM25 `app/search/bm25.py`, own RRF `app/search/hybrid.py` | `tests/test_bm25.py` (13), `tests/test_hybrid.py`; hybrid vs vector in `docs/EVALUATION.md` |
+| Multi-step reasoning, multi-document answers, citations | `app/rag/planner.py`, `app/rag/answer.py` | `test_tool_call_adds_new_context`, `test_answer_with_valid_citations`, `test_invented_citation_is_dropped_and_answer_flagged` |
+| Contradictions, refusal | answer JSON + validation in `app/rag/answer.py` | `test_contradictions_are_kept_with_valid_labels`, `test_model_refusal_is_respected`; eval: 4/4 contradictions, 5/5 refusals |
+| LLM error handling | timeouts, retries with backoff and Retry-After, 503 to the client: `app/rag/llm.py`, `app/retry.py` | `tests/test_llm.py`, `test_llm_outage_returns_503`, `test_malformed_tool_call_falls_back_to_json_answer` |
+| Tool calling | `search_documents` tool, `app/rag/tools.py` | `test_tool_call_adds_new_context`, `test_tool_rounds_are_limited` |
+| Own evaluation, 40+ questions | `eval/` (44 questions, Recall@K, MRR, correctness, citation accuracy, abstention) | `tests/test_metrics.py`; results in `eval/results/`, report `docs/EVALUATION.md` |
+| UI + backend | HTML + JS page served by FastAPI, one process (`app/ui/index.html`) | `tests/test_api.py` (11 tests) |
+| 50,000+ documents | 66,581 HotpotQA dev paragraphs + 8 synthetic documents | `scripts/build_subset.py` stops below 50,000; live `/api/health` reports 66,589 documents |
+| Deployment, persistence, secrets | Render free web service (Docker, `render.yaml`) + Qdrant Cloud; keys in Render secrets ([ADR 0008](docs/decisions/0008-render-free-512mb.md)) | live demo; `test_restart_rebuilds_state_from_the_store`; `.env` in `.gitignore` and `.dockerignore` |
 
 ## Run locally
 
 ```bash
-python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate      # Python 3.11+ (the Docker image runs 3.11; tests pass on 3.13 locally). Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env                                     # add LLM_API_KEY; QDRANT_URL empty = local storage
 python -m scripts.build_subset                           # downloads HotpotQA dev from Hugging Face (~27 MB) -> data/corpus.jsonl
@@ -61,14 +61,18 @@ Quick try without the full corpus: `python -m scripts.index_dataset --limit 2000
 
 ## Evaluation
 
+Results and analysis: [docs/EVALUATION.md](docs/EVALUATION.md) (all commands to reproduce are at its end).
+
 ```bash
-python -m eval.run_eval build                                                        # writes eval/questions.jsonl
-python -m eval.run_eval run --name vector_paragraph --collection documents_paragraph --mode vector --retrieval-only
+python -m eval.run_eval build                      # writes eval/questions.jsonl (44 questions, seed 42)
 python -m eval.run_eval run --name hybrid_paragraph --collection documents_paragraph --mode hybrid --retrieval-only
-python -m eval.run_eval run --name hybrid_fixed --collection documents_fixed --mode hybrid --retrieval-only
-python -m eval.run_eval run --name full_hybrid --collection documents_paragraph --mode hybrid --judge
-python -m eval.run_eval compare vector_paragraph hybrid_paragraph hybrid_fixed
+python -m eval.run_eval run --name full_qwen --collection documents_paragraph --mode hybrid --judge --sleep 4
+python -m eval.run_eval compare vector_paragraph bm25_paragraph hybrid_paragraph
 ```
+
+Summary (hybrid, qwen3.8-27b): Recall@10 0.921, judge 0.837, citation accuracy 0.838, 5/5 unanswerable
+questions refused, 4/4 planted contradictions reported. Hybrid beats vector-only retrieval (Recall@10 0.923 vs 0.885);
+the two chunking strategies tie, paragraph chunking stores half the chunks.
 
 ## Deploy (Render + Qdrant Cloud)
 
