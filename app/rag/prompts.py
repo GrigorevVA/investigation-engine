@@ -23,6 +23,9 @@ search_documents is the only tool. When you are done, write this JSON object as 
  "contradictions": [{{"description": "...", "citations": ["C2", "C5"]}}],
  "insufficient_evidence": false}}"""
 
+FINAL_ANSWER_NUDGE = """No more searches are possible. Using only the context chunks above, reply now with
+only the final JSON object (answer, citations, contradictions, insufficient_evidence)."""
+
 ANSWER_USER = """Question: {question}
 
 Search plan: {plan}

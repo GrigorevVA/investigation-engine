@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass, field
 from app.models import Chunk, SearchHit
 from app.rag.llm import LLMClient, ToolUseFailed, parse_json
 from app.rag.planner import plan_queries
-from app.rag.prompts import ANSWER_SYSTEM, ANSWER_USER
+from app.rag.prompts import ANSWER_SYSTEM, ANSWER_USER, FINAL_ANSWER_NUDGE
 from app.rag.tools import TOOLS, parse_tool_call
 from app.search.hybrid import HybridSearcher
 
@@ -99,7 +99,8 @@ class Investigator:
                 message = self.llm.chat(messages, tools=TOOLS if allow_tools else None)
             except ToolUseFailed:
                 log.warning("Model sent a malformed tool call, asking for the final JSON without tools")
-                return self.llm.chat_json(messages)
+                final = messages + [{"role": "user", "content": FINAL_ANSWER_NUDGE}]
+                return self._parse_answer(self.llm.chat(final), final)
             tool_calls = message.get("tool_calls") or []
             if not tool_calls or not allow_tools:
                 return self._parse_answer(message, messages)

@@ -98,4 +98,5 @@ def test_malformed_tool_call_falls_back_to_json_answer(store, embedder):
     inv, llm = setup(store, embedder, [plan(), ToolUseFailed("tool_use_failed"), final("2014 [C1].", ["C1"])])
     result = inv.investigate("When was Lumora founded?")
     assert [c.label for c in result.citations] == ["C1"]
-    assert llm.calls[2]["tools"] is None and llm.calls[2]["json_mode"]  # retried without tools
+    assert llm.calls[2]["tools"] is None  # retried without tools
+    assert "No more searches" in llm.calls[2]["messages"][-1]["content"]
