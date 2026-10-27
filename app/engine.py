@@ -42,10 +42,7 @@ class Engine:
     def _bm25_index(self) -> BM25Index | None:
         with self._lock:
             if self._bm25_dirty:
-                try:
-                    self._bm25 = BM25Index(list(self._chunks.values()), self.settings.bm25_k1, self.settings.bm25_b)
-                except NotImplementedError:
-                    self._bm25 = None
+                self._bm25 = BM25Index(list(self._chunks.values()), self.settings.bm25_k1, self.settings.bm25_b)
                 self._bm25_dirty = False
             return self._bm25
 
