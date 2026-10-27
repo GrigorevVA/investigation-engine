@@ -96,7 +96,7 @@ python -m eval.run_eval compare vector_paragraph hybrid_paragraph hybrid_fixed
 | Method | Path | |
 |---|---|---|
 | GET | `/api/health` | status and index stats |
-| GET | `/api/documents` | uploaded documents (`?include_corpus=true` for all) |
+| GET | `/api/documents` | uploaded and synthetic documents (the 66k corpus paragraphs are counted in `/api/health`) |
 | POST | `/api/documents` | upload a file (multipart `file`) |
 | PUT | `/api/documents/{doc_id}` | new version of a document |
 | DELETE | `/api/documents/{doc_id}` | remove a document and its chunks |

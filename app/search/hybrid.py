@@ -43,8 +43,21 @@ class HybridSearcher:
         if mode == "vector":
             return self.store.search(self.embedder.embed_query(query), k)
         if mode == "bm25":
-            return self.bm25.search(query, k)
-        return self._hybrid(query, k)
+            return self._with_text(self.bm25.search(query, k))
+        return self._with_text(self._hybrid(query, k))
+
+    def _with_text(self, hits: list[SearchHit]) -> list[SearchHit]:
+        """BM25 keeps chunks without text to save memory: fetch the texts of the hits from Qdrant.
+        A hit whose chunk was deleted after the BM25 index was built is dropped."""
+        missing = [h.chunk.chunk_id for h in hits if not h.chunk.text]
+        full = self.store.get_chunks(missing)
+        result = []
+        for h in hits:
+            if h.chunk.text:
+                result.append(h)
+            elif h.chunk.chunk_id in full:
+                result.append(SearchHit(chunk=full[h.chunk.chunk_id], score=h.score, retriever=h.retriever))
+        return result
 
     def _hybrid(self, query: str, k: int) -> list[SearchHit]:
         vector_hits = self.store.search(self.embedder.embed_query(query), self.candidate_k)

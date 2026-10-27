@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Investigation Engine</title>
+<style>
+  :root { --bg:#fafafa; --card:#fff; --text:#1d1d1f; --muted:#6b6b70; --line:#e2e2e6; --accent:#2457d6;
+          --warn-bg:#fff6e0; --warn:#8a5a00; --err-bg:#fdecec; --err:#a31919; --cited:#e8f0ff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#151517; --card:#1f1f23; --text:#ececf1; --muted:#9a9aa3; --line:#34343a; --accent:#7aa2ff;
+            --warn-bg:#3a2f12; --warn:#f2c76b; --err-bg:#3d1c1c; --err:#ff9b9b; --cited:#22304f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  nav { display:flex; gap:4px; margin: 20px 0 16px; border-bottom:1px solid var(--line); }
+  nav button { background:none; border:0; border-bottom:2px solid transparent; padding:8px 12px; color:var(--muted);
+               font:inherit; cursor:pointer; }
+  nav button.active { color:var(--text); border-bottom-color:var(--accent); }
+  section { display:none; } section.active { display:block; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:12px; }
+  textarea, input[type=text] { width:100%; padding:10px; border:1px solid var(--line); border-radius:6px;
+                               background:var(--card); color:var(--text); font:inherit; }
+  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  button.primary { background:var(--accent); color:#fff; border:0; border-radius:6px; padding:9px 16px; font:inherit; cursor:pointer; }
+  button.primary:disabled { opacity:.5; cursor:wait; }
+  button.link { background:none; border:0; color:var(--accent); cursor:pointer; padding:2px 0; font:inherit; text-align:left; }
+  .examples { display:flex; flex-direction:column; gap:2px; margin-top:8px; }
+  .banner { padding:10px 12px; border-radius:6px; margin-bottom:10px; }
+  .warn { background:var(--warn-bg); color:var(--warn); } .err { background:var(--err-bg); color:var(--err); }
+  .answer { white-space:pre-wrap; }
+  .source { border-top:1px solid var(--line); padding:10px 0; }
+  .source.cited { background:var(--cited); padding:10px; border-radius:6px; border-top:0; margin-bottom:4px; }
+  .label { font-weight:600; }
+  code { font-size:12px; color:var(--muted); word-break:break-all; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  ol { margin:6px 0 0; padding-left:20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>AI Investigation Engine</h1>
+  <div class="muted" id="stats">Loading index…</div>
+  <nav>
+    <button data-tab="ask" class="active">Investigate</button>
+    <button data-tab="docs">Documents</button>
+    <button data-tab="search">Search debug</button>
+  </nav>
+
+  <section id="ask" class="active">
+    <div class="card">
+      <textarea id="question" rows="2" placeholder="Ask about people, films, places, companies…"></textarea>
+      <div class="row">
+        <label>Retrieval <select id="mode"><option>hybrid</option><option>vector</option><option>bm25</option></select></label>
+        <button class="primary" id="run">Investigate</button>
+        <span class="muted" id="ask-status"></span>
+      </div>
+      <div class="examples" id="examples"></div>
+    </div>
+    <div id="result"></div>
+  </section>
+
+  <section id="docs">
+    <div class="card">
+      <div>Upload TXT, MD, PDF or DOCX. A file with the same name replaces the previous version.</div>
+      <div class="row">
+        <input type="file" id="files" multiple accept=".txt,.md,.pdf,.docx">
+        <button class="primary" id="upload">Upload</button>
+      </div>
+      <div id="upload-log" class="muted"></div>
+    </div>
+    <div class="card"><table><thead><tr><th>Title</th><th>doc_id</th><th>Format</th><th>Chunks</th><th></th></tr></thead>
+      <tbody id="doc-rows"></tbody></table></div>
+  </section>
+
+  <section id="search">
+    <div class="card">
+      <input type="text" id="q" placeholder="Query">
+      <div class="row">
+        <select id="q-mode"><option>hybrid</option><option>vector</option><option>bm25</option></select>
+        <label>k <input type="number" id="q-k" value="8" min="1" max="50" style="width:64px"></label>
+        <button class="primary" id="q-run">Search</button>
+      </div>
+    </div>
+    <div class="card"><table><thead><tr><th>Title</th><th>Score</th><th>Text</th></tr></thead>
+      <tbody id="hits"></tbody></table></div>
+  </section>
+</main>
+
+<script>
+// Every string from documents or the model goes through textContent, never innerHTML.
+const EXAMPLES = [
+  "Which magazine was started first, Arthur's Magazine or First for Women?",
+  "Were Scott Derrickson and Ed Wood of the same nationality?",
+  "In what year was Lumora Robotics founded?",
+  "What was Lumora Robotics' revenue in 2030?",
+  "What was the revenue of Lumora Robotics in 2031?",
+];
+const $ = (id) => document.getElementById(id);
+function el(tag, text, cls) { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; }
+
+async function api(path, options = {}) {
+  const r = await fetch(path, options);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail ? JSON.stringify(body.detail) : `HTTP ${r.status}`);
+  return body;
+}
+
+document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll("nav button, section").forEach((x) => x.classList.remove("active"));
+  b.classList.add("active"); $(b.dataset.tab).classList.add("active");
+  if (b.dataset.tab === "docs") loadDocs();
+});
+
+async function loadStats() {
+  try {
+    const s = await api("/api/health");
+    $("stats").textContent = `${s.documents.toLocaleString()} documents · ${s.chunks.toLocaleString()} chunks · ` +
+      `model ${s.llm_model}` + (s.bm25_rebuilding ? " · keyword index rebuilding" : "");
+  } catch (e) { $("stats").textContent = "Index unavailable: " + e.message; }
+}
+
+EXAMPLES.forEach((q) => { const b = el("button", q, "link"); b.onclick = () => { $("question").value = q; }; $("examples").append(b); });
+
+function renderResult(r) {
+  const box = $("result"); box.replaceChildren();
+  const card = el("div", null, "card");
+  if (r.insufficient_evidence) card.append(el("div", "Not enough evidence in the documents.", "banner warn"));
+  card.append(el("div", r.answer, "answer"));
+  if (r.contradictions.length) {
+    card.append(el("h3", "Conflicting sources"));
+    const ul = el("ul");
+    r.contradictions.forEach((c) => ul.append(el("li", `${c.description} (${c.citations.join(", ")})`)));
+    card.append(ul);
+  }
+  if (r.notes.length) card.append(el("div", r.notes.join(" "), "muted"));
+  box.append(card);
+
+  const plan = el("div", null, "card"); plan.append(el("div", "Search plan", "label"));
+  const ol = el("ol"); r.queries.forEach((q) => ol.append(el("li", q))); plan.append(ol); box.append(plan);
+
+  const src = el("div", null, "card"); src.append(el("div", "Sources", "label"));
+  const cited = new Set(r.citations.map((c) => c.label));
+  r.retrieved.forEach((c) => {
+    const s = el("div", null, "source" + (cited.has(c.label) ? " cited" : ""));
+    s.append(el("div", `[${c.label}] ${c.title}${cited.has(c.label) ? " · cited" : ""}`, "label"));
+    s.append(el("code", c.chunk_id)); s.append(el("div", c.snippet + "…"));
+    src.append(s);
+  });
+  box.append(src);
+}
+
+$("run").onclick = async () => {
+  const question = $("question").value.trim();
+  if (question.length < 3) { $("ask-status").textContent = "Type a question or pick an example."; return; }
+  $("run").disabled = true; $("ask-status").textContent = "Investigating… (several LLM calls, up to a minute)";
+  try {
+    renderResult(await api("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, mode: $("mode").value }) }));
+    $("ask-status").textContent = "";
+  } catch (e) {
+    $("result").replaceChildren(el("div", e.message, "banner err")); $("ask-status").textContent = "";
+  } finally { $("run").disabled = false; }
+};
+$("question").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("run").click(); } });
+
+async function loadDocs() {
+  const rows = $("doc-rows"); rows.replaceChildren();
+  try {
+    for (const d of await api("/api/documents")) {
+      const tr = el("tr");
+      [d.title, d.doc_id, d.fmt, d.chunks].forEach((v) => tr.append(el("td", String(v))));
+      const del = el("button", "Delete", "link"); del.onclick = () => removeDoc(d.doc_id);
+      const td = el("td"); td.append(del); tr.append(td); rows.append(tr);
+    }
+  } catch (e) { rows.append(el("tr", "Could not load documents: " + e.message)); }
+}
+
+async function removeDoc(docId) {
+  if (!confirm(`Delete ${docId}?`)) return;
+  try { await api("/api/documents/" + encodeURIComponent(docId), { method: "DELETE" }); }
+  catch (e) { alert(e.message); }
+  loadDocs(); loadStats();
+}
+
+$("upload").onclick = async () => {
+  const log = $("upload-log"); log.replaceChildren();
+  for (const f of $("files").files) {
+    const form = new FormData(); form.append("file", f);
+    try {
+      const r = await api("/api/documents", { method: "POST", body: form });
+      log.append(el("div", `${f.name}: ${r.status}, ${r.chunks} chunks` + (r.duplicate_of ? `, same content as ${r.duplicate_of}` : "")));
+    } catch (e) { log.append(el("div", `${f.name}: rejected, ${e.message}`)); }
+  }
+  loadDocs(); loadStats();
+};
+
+$("q-run").onclick = async () => {
+  const rows = $("hits"); rows.replaceChildren();
+  try {
+    const hits = await api("/api/search", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: $("q").value, mode: $("q-mode").value, k: Number($("q-k").value) }) });
+    hits.forEach((h) => { const tr = el("tr"); [h.title, h.score, h.text.slice(0, 200)].forEach((v) => tr.append(el("td", String(v)))); rows.append(tr); });
+  } catch (e) { rows.append(el("tr", e.message)); }
+};
+
+loadStats();
+</script>
+</body>
+</html>

@@ -1,10 +1,10 @@
 """HTTP API. Run: uvicorn app.api.main:app --port 7860  (UI at /, API docs at /docs)."""
 import logging
-import os
 from functools import lru_cache
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
@@ -14,7 +14,9 @@ from app.rag.llm import LLMError, LLMUnavailable
 from app.search.vector_store import VectorStoreError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logging.getLogger("httpx").setLevel(logging.WARNING)  # one INFO line per Qdrant request is noise
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+UI_PAGE = Path(__file__).parent.parent / "ui" / "index.html"
 
 app = FastAPI(title="AI Investigation Engine", version="1.0")
 
@@ -56,8 +58,8 @@ def health(engine: Engine = Depends(get_engine)) -> dict:
 
 
 @app.get("/api/documents")
-def list_documents(include_corpus: bool = False, engine: Engine = Depends(get_engine)) -> list[dict]:
-    return engine.list_documents(include_corpus)
+def list_documents(engine: Engine = Depends(get_engine)) -> list[dict]:
+    return engine.list_documents()
 
 
 async def _read_upload(file: UploadFile) -> bytes:
@@ -106,13 +108,7 @@ def ask(req: AskRequest, engine: Engine = Depends(get_engine)) -> dict:
     return engine.investigate(req.question, req.mode).to_dict()
 
 
-def _mount_ui() -> None:
-    import gradio as gr
-
-    from app.ui.app import build_ui
-
-    gr.mount_gradio_app(app, build_ui(get_engine), path="/")
-
-
-if os.environ.get("DISABLE_UI") != "1":  # tests set DISABLE_UI=1 to test the API alone
-    _mount_ui()
+@app.get("/", include_in_schema=False)
+def ui() -> FileResponse:
+    """Plain HTML + JS page over this API. Replaced Gradio, which alone took ~120 MB of a 512 MB host."""
+    return FileResponse(UI_PAGE, media_type="text/html")

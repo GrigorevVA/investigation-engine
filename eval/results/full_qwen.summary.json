@@ -1,0 +1,55 @@
+{
+  "questions": 44,
+  "errors": 1,
+  "recall@5": 0.908,
+  "recall@10": 0.921,
+  "MRR": 0.934,
+  "contains_ref": 0.737,
+  "f1": 0.141,
+  "judge": 0.837,
+  "citation_acc": 0.838,
+  "abstention_correct": 0.884,
+  "contradiction_found": 1.0,
+  "by_type": {
+    "multi_hop": {
+      "recall@10": 0.889,
+      "contains_ref": 0.722,
+      "abstention_correct": 0.889,
+      "n": 18
+    },
+    "comparison": {
+      "recall@10": 0.9,
+      "contains_ref": 0.9,
+      "abstention_correct": 0.7,
+      "n": 10
+    },
+    "simple": {
+      "recall@10": 1.0,
+      "contains_ref": 1.0,
+      "abstention_correct": 1.0,
+      "n": 6
+    },
+    "contradiction": {
+      "recall@10": 1.0,
+      "contains_ref": 0.0,
+      "abstention_correct": 1.0,
+      "n": 4
+    },
+    "temporal": {
+      "recall@10": 1.0,
+      "contains_ref": 0.0,
+      "abstention_correct": 1.0,
+      "n": 1
+    },
+    "unanswerable": {
+      "abstention_correct": 1.0,
+      "n": 5
+    }
+  },
+  "config": {
+    "collection": "documents_paragraph",
+    "mode": "hybrid",
+    "retrieval_only": false,
+    "model": "qwen/qwen3.8-27b"
+  }
+}

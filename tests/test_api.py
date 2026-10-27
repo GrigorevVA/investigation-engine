@@ -84,3 +84,8 @@ def test_validation(api):
 
 def test_health(api):
     assert api.get("/api/health").json()["status"] == "ok"
+
+
+def test_ui_page_is_served(api):
+    r = api.get("/")
+    assert r.status_code == 200 and "AI Investigation Engine" in r.text

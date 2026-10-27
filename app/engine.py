@@ -1,7 +1,10 @@
 """Wires all parts together. The API and the UI talk only to Engine."""
+import ctypes
 import logging
 import tempfile
 import threading
+import time
+from collections.abc import Iterator
 from pathlib import Path
 
 from app.config import Settings
@@ -16,9 +19,13 @@ from app.search.hybrid import HybridSearcher
 from app.search.vector_store import QdrantStore
 
 log = logging.getLogger(__name__)
+CORPUS_SOURCE = "hotpotqa"
 
 
 class Engine:
+    """Holds no chunk texts in memory (512 MB free hosting): a document registry for the UI,
+    a BM25 index over text-less chunks, and Qdrant for everything else."""
+
     def __init__(self, settings: Settings, store: QdrantStore, embedder: Embedder, llm: LLMClient) -> None:
         self.settings = settings
         self.store = store
@@ -26,29 +33,72 @@ class Engine:
         self.llm = llm
         self.pipeline = IngestPipeline(store, embedder, settings.chunk_strategy,
                                        settings.chunk_size, settings.chunk_overlap)
-        self._chunks: dict[str, Chunk] = {}  # chunk_id -> chunk, the BM25 corpus
+        self._docs: dict[str, dict] = {}  # uploaded and synthetic docs: doc_id -> title, source, fmt, chunks
+        self._corpus = {"documents": 0, "chunks": 0}  # 66k corpus paragraphs are counted, not listed
         self._bm25: BM25Index | None = None
-        self._bm25_dirty = True
         self._lock = threading.Lock()
+        self._rebuilding = False
+        self._rebuild_pending = False
         store.ensure_collection()
-        self._load_chunks()
+        self._load_index()
 
-    def _load_chunks(self) -> None:
-        """Rebuild the in-memory view from Qdrant, so a restart loses nothing."""
-        self._chunks = {chunk.chunk_id: chunk for chunk, _ in self.store.iter_chunks()}
-        self._bm25_dirty = True
-        log.info("Loaded %d chunks from the vector store", len(self._chunks))
+    def _load_index(self) -> None:
+        """Read every chunk from Qdrant once: build BM25 and the document registry, then swap them in.
+        Also how a restart loses nothing: the state is rebuilt from the database."""
+        docs: dict[str, dict] = {}
+        corpus_docs: set[str] = set()
+        corpus_chunks = 0
 
-    def _bm25_index(self) -> BM25Index | None:
+        def stream() -> Iterator[Chunk]:
+            nonlocal corpus_chunks
+            for chunk, _ in self.store.iter_chunks():
+                if chunk.metadata.get("source") == CORPUS_SOURCE:
+                    corpus_docs.add(chunk.doc_id)
+                    corpus_chunks += 1
+                else:
+                    _register(docs, chunk)
+                yield chunk
+
+        bm25 = BM25Index(stream(), self.settings.bm25_k1, self.settings.bm25_b, drop_text=True)
         with self._lock:
-            if self._bm25_dirty:
-                self._bm25 = BM25Index(list(self._chunks.values()), self.settings.bm25_k1, self.settings.bm25_b)
-                self._bm25_dirty = False
-            return self._bm25
+            self._bm25, self._docs = bm25, docs
+            self._corpus = {"documents": len(corpus_docs), "chunks": corpus_chunks}
+        _release_free_memory()
+        log.info("Indexed %d chunks for BM25 (%d corpus documents, %d others)", len(bm25), len(corpus_docs), len(docs))
+
+    def _schedule_rebuild(self) -> None:
+        """Rebuild BM25 in a background thread after a change (~40 s for 78k chunks from Qdrant Cloud).
+        Meanwhile hybrid search falls back to vector search, which sees the change at once.
+        Changes made during a rebuild queue one more rebuild."""
+        with self._lock:
+            self._rebuild_pending = True
+            if self._rebuilding:
+                return
+            self._rebuilding = True
+        threading.Thread(target=self._rebuild_loop, daemon=True).start()
+
+    def _rebuild_loop(self) -> None:
+        while True:
+            with self._lock:
+                if not self._rebuild_pending:
+                    self._rebuilding = False
+                    return
+                self._rebuild_pending = False
+            try:
+                with self._lock:
+                    self._bm25 = None  # free the old index first: two at once do not fit in 512 MB
+                self._load_index()
+            except Exception:  # a failed rebuild must not kill the thread state; the old index stays
+                log.exception("BM25 rebuild failed, keeping the previous index")
+
+    def wait_for_index(self, timeout_s: float = 30.0) -> None:
+        """Block until a scheduled rebuild has finished (tests, scripts)."""
+        deadline = time.monotonic() + timeout_s
+        while self._rebuilding and time.monotonic() < deadline:
+            time.sleep(0.01)
 
     def searcher(self) -> HybridSearcher:
-        return HybridSearcher(self.store, self.embedder, self._bm25_index(),
-                              self.settings.candidate_k, self.settings.rrf_k)
+        return HybridSearcher(self.store, self.embedder, self._bm25, self.settings.candidate_k, self.settings.rrf_k)
 
     # ---- documents ----
     def add_file(self, data: bytes, filename: str) -> IngestResult:
@@ -62,40 +112,32 @@ class Engine:
             tmp_path.unlink(missing_ok=True)
         result = self.pipeline.ingest(doc)
         if result.status in ("added", "updated"):
-            self._forget(doc.doc_id)
-            self._chunks.update({c.chunk_id: c for c in result.stored_chunks})
-            self._bm25_dirty = True
+            with self._lock:
+                self._docs.pop(doc.doc_id, None)
+                for chunk in result.stored_chunks:
+                    _register(self._docs, chunk)
+            self._schedule_rebuild()
         return result
 
     def delete(self, doc_id: str) -> bool:
         deleted = self.pipeline.delete(doc_id)
         if deleted:
-            self._forget(doc_id)
-            self._bm25_dirty = True
+            with self._lock:
+                self._docs.pop(doc_id, None)
+            self._schedule_rebuild()
         return deleted
 
-    def _forget(self, doc_id: str) -> None:
-        for chunk_id in [cid for cid, c in self._chunks.items() if c.doc_id == doc_id]:
-            del self._chunks[chunk_id]
-
-    def list_documents(self, include_corpus: bool = False) -> list[dict]:
-        docs: dict[str, dict] = {}
-        for chunk in self._chunks.values():
-            source = chunk.metadata.get("source", "")
-            if not include_corpus and source == "hotpotqa":
-                continue
-            entry = docs.setdefault(chunk.doc_id, {"doc_id": chunk.doc_id, "title": chunk.title,
-                                                   "source": source, "fmt": chunk.metadata.get("fmt", ""),
-                                                   "chunks": 0})
-            entry["chunks"] += 1
-        return sorted(docs.values(), key=lambda d: d["title"].lower())
+    def list_documents(self) -> list[dict]:
+        """Uploaded and synthetic documents. Corpus paragraphs are only counted in stats()."""
+        return sorted(self._docs.values(), key=lambda d: d["title"].lower())
 
     def stats(self) -> dict:
-        doc_ids = {c.doc_id for c in self._chunks.values()}
-        bm25 = self._bm25_index()
-        return {"documents": len(doc_ids), "chunks": len(self._chunks), "collection": self.store.collection,
-                "chunk_strategy": self.settings.chunk_strategy, "search_mode": self.settings.search_mode,
-                "bm25_ready": bm25 is not None, "llm_model": self.settings.llm_model}
+        own_chunks = sum(d["chunks"] for d in self._docs.values())
+        return {"documents": len(self._docs) + self._corpus["documents"],
+                "chunks": own_chunks + self._corpus["chunks"], "corpus_documents": self._corpus["documents"],
+                "collection": self.store.collection, "chunk_strategy": self.settings.chunk_strategy,
+                "search_mode": self.settings.search_mode, "bm25_ready": self._bm25 is not None,
+                "bm25_rebuilding": self._rebuilding, "llm_model": self.settings.llm_model}
 
     # ---- search and investigation ----
     def search(self, query: str, k: int | None = None, mode: str | None = None) -> list[SearchHit]:
@@ -106,6 +148,21 @@ class Engine:
         investigator = Investigator(self.llm, self.searcher(), s.top_k, mode or s.search_mode,
                                     s.max_subquestions, s.max_context_chunks, s.max_tool_rounds)
         return investigator.investigate(question)
+
+
+def _release_free_memory() -> None:
+    """Ask glibc to hand freed heap pages back to the OS after a big build (Linux only, no-op elsewhere)."""
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except OSError:
+        pass
+
+
+def _register(docs: dict[str, dict], chunk: Chunk) -> None:
+    entry = docs.setdefault(chunk.doc_id, {"doc_id": chunk.doc_id, "title": chunk.title,
+                                           "source": chunk.metadata.get("source", ""),
+                                           "fmt": chunk.metadata.get("fmt", ""), "chunks": 0})
+    entry["chunks"] += 1
 
 
 def build_engine(settings: Settings) -> Engine:

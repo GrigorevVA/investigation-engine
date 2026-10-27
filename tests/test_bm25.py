@@ -71,3 +71,13 @@ def test_exact_score_single_term():
 
 def test_empty_index():
     assert BM25Index([]).search("drone", k=3) == []
+
+
+def test_drop_text_keeps_search_working_without_texts():
+    index = BM25Index(CHUNKS, drop_text=True)
+    hit = index.search("drone battery", k=1)[0]
+    assert hit.chunk.doc_id == "a" and hit.chunk.text == ""
+
+
+def test_zero_k_returns_nothing():
+    assert BM25Index(CHUNKS).search("drone", k=0) == []

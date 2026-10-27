@@ -87,6 +87,14 @@ class QdrantStore:
             self.collection, query=vector, limit=k, with_payload=True))
         return [SearchHit(chunk=_chunk(p.payload), score=p.score, retriever="vector") for p in result.points]
 
+    def get_chunks(self, chunk_ids: list[str]) -> dict[str, Chunk]:
+        """Full chunks (with text) by chunk id. Ids that are no longer stored are missing from the result."""
+        if not chunk_ids:
+            return {}
+        points = self._call(lambda: self.client.retrieve(
+            self.collection, ids=[point_id(cid) for cid in chunk_ids], with_payload=True))
+        return {p.payload["chunk_id"]: _chunk(p.payload) for p in points}
+
     def delete_doc(self, doc_id: str) -> None:
         self._call(lambda: self.client.delete(self.collection, points_selector=_doc_filter("doc_id", doc_id)))
 

@@ -1,7 +1,3 @@
-import os
-
-os.environ["DISABLE_UI"] = "1"  # API tests do not need Gradio
-
 import pytest
 from qdrant_client import QdrantClient
 
