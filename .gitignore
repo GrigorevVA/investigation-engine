@@ -13,3 +13,4 @@ data/hotpot_questions.jsonl
 data/corpus_subset.jsonl
 data/qdrant_subset/
 data/*.log
+notes/
