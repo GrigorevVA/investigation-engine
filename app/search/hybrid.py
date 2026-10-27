@@ -11,14 +11,18 @@ SEARCH_MODES = ("vector", "bm25", "hybrid")
 
 
 def reciprocal_rank_fusion(rankings: list[list[str]], k: int = 60) -> list[tuple[str, float]]:
-    """TODO(Vladimir): own fusion algorithm, tests in tests/test_hybrid.py.
+    """Own fusion algorithm.
 
     Each ranking is a list of chunk ids, best first. A chunk at 1-based rank r in one list
     gets 1 / (k + r) from that list; its fused score is the sum over all lists it appears in.
     Return (chunk_id, score) pairs sorted by score, highest first.
     Why ranks and not raw scores: cosine similarity and BM25 live on different scales.
     """
-    raise NotImplementedError("reciprocal_rank_fusion is the author's own algorithm")
+    scores: dict[str, float] = {}
+    for ranking in rankings:
+        for rank, chunk_id in enumerate(ranking, start=1):
+            scores[chunk_id] = scores.get(chunk_id, 0.0) + 1 / (k + rank)
+    return sorted(scores.items(), key=lambda pair: pair[1], reverse=True)
 
 
 class HybridSearcher:

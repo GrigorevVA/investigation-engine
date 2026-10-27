@@ -1,7 +1,6 @@
 """Own keyword search: Okapi BM25.
 
-TODO(Vladimir): implement BM25Index. The tests in tests/test_bm25.py describe the
-expected behaviour; make them green. Explanation in Russian: docs/WALKTHROUGH_ru.md.
+Tests: tests/test_bm25.py. Explanation in Russian: docs/WALKTHROUGH_ru.md.
 
 Formula for one query term t and one chunk d:
 
@@ -17,7 +16,10 @@ Formula for one query term t and one chunk d:
 
 score(query, d) is the sum over the query's tokens. Index Chunk.search_text, not Chunk.text.
 """
+import heapq
+import math
 import re
+from collections import Counter
 
 from app.models import Chunk, SearchHit
 
@@ -34,13 +36,34 @@ def tokenize(text: str) -> list[str]:
 
 class BM25Index:
     def __init__(self, chunks: list[Chunk], k1: float = 1.5, b: float = 0.75) -> None:
-        # Precompute here: tokens of each chunk, document frequency of each term, avgdl.
-        raise NotImplementedError("BM25Index is the author's own algorithm, see the module docstring")
+        self.chunks = chunks
+        self.k1 = k1
+        self.b = b
+        self.doc_lens: list[int] = []
+        # inverted index: term -> [(chunk position in self.chunks, tf), ...]
+        self.postings: dict[str, list[tuple[int, int]]] = {}
+        for i, chunk in enumerate(chunks):
+            tokens = tokenize(chunk.search_text)
+            self.doc_lens.append(len(tokens))
+            for term, tf in Counter(tokens).items():
+                self.postings.setdefault(term, []).append((i, tf))
+        self.avgdl = sum(self.doc_lens) / len(chunks) if chunks else 0.0
 
     def __len__(self) -> int:
-        raise NotImplementedError
+        return len(self.chunks)
+
+    def idf(self, term: str) -> float:
+        df = len(self.postings.get(term, []))
+        n = len(self.chunks)
+        return math.log((n - df + 0.5) / (df + 0.5) + 1)
 
     def search(self, query: str, k: int) -> list[SearchHit]:
-        """Top k chunks by BM25 score, highest first, only chunks with score > 0.
-        Return SearchHit(chunk=..., score=..., retriever="bm25")."""
-        raise NotImplementedError
+        """Top k chunks by BM25 score, highest first, only chunks with score > 0."""
+        scores: dict[int, float] = {}
+        for term in set(tokenize(query)):
+            idf = self.idf(term)
+            for i, tf in self.postings.get(term, []):
+                norm = self.k1 * (1 - self.b + self.b * self.doc_lens[i] / self.avgdl)
+                scores[i] = scores.get(i, 0.0) + idf * tf * (self.k1 + 1) / (tf + norm)
+        best = heapq.nlargest(k, scores.items(), key=lambda pair: pair[1])
+        return [SearchHit(chunk=self.chunks[i], score=s, retriever="bm25") for i, s in best if s > 0]

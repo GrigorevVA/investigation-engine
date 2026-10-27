@@ -1,6 +1,5 @@
 """Evaluation metrics.
 
-TODO(Vladimir): recall_at_k, reciprocal_rank and citation_accuracy are yours to write.
 Tests: tests/test_metrics.py. Explanations in Russian: docs/WALKTHROUGH_ru.md.
 All ids here are document ids (several chunks of one document count as one document).
 """
@@ -18,19 +17,30 @@ def unique_in_order(ids: list[str]) -> list[str]:
 def recall_at_k(retrieved: list[str], relevant: list[str], k: int) -> float:
     """Share of relevant documents found in the first k retrieved (after unique_in_order).
     relevant = ['a', 'b'], retrieved top-k contains only 'a'  ->  0.5. Empty relevant -> 0.0."""
-    raise NotImplementedError
+    if not relevant:
+        return 0.0
+    top_k = set(unique_in_order(retrieved)[:k])
+    return len(top_k & set(relevant)) / len(set(relevant))
 
 
 def reciprocal_rank(retrieved: list[str], relevant: list[str]) -> float:
     """1 / (1-based rank of the FIRST relevant document), 0.0 if none was retrieved.
     MRR is the mean of this value over all questions."""
-    raise NotImplementedError
+    relevant_set = set(relevant)
+    for rank, doc_id in enumerate(unique_in_order(retrieved), start=1):
+        if doc_id in relevant_set:
+            return 1 / rank
+    return 0.0
 
 
 def citation_accuracy(cited: list[str], relevant: list[str]) -> float:
     """Share of cited documents that are relevant (precision of citations).
     No citations -> 0.0. Example: cited ['a', 'x'], relevant ['a', 'b'] -> 0.5."""
-    raise NotImplementedError
+    cited_unique = unique_in_order(cited)
+    if not cited_unique:
+        return 0.0
+    relevant_set = set(relevant)
+    return sum(doc_id in relevant_set for doc_id in cited_unique) / len(cited_unique)
 
 
 def normalize_answer(text: str) -> str:
