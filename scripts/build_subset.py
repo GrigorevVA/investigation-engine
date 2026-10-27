@@ -1,4 +1,4 @@
-"""Download HotpotQA (dev, distractor setting) and turn it into a corpus + questions.
+"""Download HotpotQA (dev = HF "validation" split, distractor setting) and turn it into a corpus + questions.
 
 Each question in this file comes with 10 Wikipedia paragraphs (2 gold + 8 distractors).
 Unique paragraphs across all 7,405 questions form the corpus.
@@ -11,7 +11,10 @@ import json
 import urllib.request
 from pathlib import Path
 
-URL = "http://curtis.ml.cmu.edu/datasets/hotpot/hotpot_dev_distractor_v1.json"
+import pyarrow.parquet as pq
+
+# The original CMU mirror is gone; the Hugging Face copy is the one linked in the task.
+URL = "https://huggingface.co/api/datasets/hotpotqa/hotpot_qa/parquet/distractor/validation/0.parquet"
 MIN_DOCS = 50_000
 
 
@@ -20,7 +23,7 @@ def download(url: str, target: Path) -> Path:
         print(f"Using cached {target}")
         return target
     target.parent.mkdir(parents=True, exist_ok=True)
-    print(f"Downloading {url} (about 45 MB)...")
+    print(f"Downloading {url} (about 27 MB)...")
     urllib.request.urlretrieve(url, target)
     return target
 
@@ -29,13 +32,14 @@ def build(raw: list[dict]) -> tuple[list[dict], list[dict]]:
     corpus: dict[str, dict] = {}
     questions = []
     for item in raw:
-        for title, sentences in item["context"]:
+        context = item["context"]
+        for title, sentences in zip(context["title"], context["sentences"]):
             text = "".join(sentences).strip()
             if text and title not in corpus:  # the same article appears under many questions
                 corpus[title] = {"doc_id": f"hotpot::{title}", "title": title, "text": text, "source": "hotpotqa"}
-        supporting = sorted({title for title, _ in item["supporting_facts"]})
+        supporting = sorted(set(item["supporting_facts"]["title"]))
         questions.append({
-            "id": item["_id"], "question": item["question"], "answer": item["answer"],
+            "id": item["id"], "question": item["question"], "answer": item["answer"],
             "type": item["type"], "level": item["level"],
             "relevant_doc_ids": [f"hotpot::{t}" for t in supporting],
         })
@@ -53,8 +57,8 @@ def main() -> None:
     parser.add_argument("--data-dir", default="data")
     args = parser.parse_args()
     data = Path(args.data_dir)
-    raw_path = download(URL, data / "raw" / "hotpot_dev_distractor_v1.json")
-    corpus, questions = build(json.loads(raw_path.read_text(encoding="utf-8")))
+    raw_path = download(URL, data / "raw" / "hotpot_distractor_validation.parquet")
+    corpus, questions = build(pq.read_table(raw_path).to_pylist())
     write_jsonl(corpus, data / "corpus.jsonl")
     write_jsonl(questions, data / "hotpot_questions.jsonl")
     print(f"Corpus: {len(corpus):,} unique paragraphs, questions: {len(questions):,}")

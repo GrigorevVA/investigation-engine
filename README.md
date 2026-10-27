@@ -60,7 +60,7 @@ flowchart LR
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env                                     # add LLM_API_KEY; QDRANT_URL empty = local storage
-python -m scripts.build_subset                           # downloads HotpotQA dev (~45 MB) -> data/corpus.jsonl
+python -m scripts.build_subset                           # downloads HotpotQA dev from Hugging Face (~27 MB) -> data/corpus.jsonl
 python -m scripts.make_synthetic_docs                    # data/synthetic: 9 files in 4 formats
 python -m scripts.index_dataset --strategy paragraph --collection documents_paragraph
 uvicorn app.api.main:app --port 7860                     # UI: http://localhost:7860, API docs: /docs
