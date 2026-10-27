@@ -71,6 +71,10 @@ class QdrantStore:
             models.PointStruct(id=point_id(c.chunk_id), vector=v, payload=_payload(c, h))
             for c, v, h in zip(chunks, vectors, doc_hashes, strict=True)
         ]
+        self.upsert_points(points)
+
+    def upsert_points(self, points: list[models.PointStruct]) -> None:
+        """Write ready points (vector + payload), 256 per request. Also used to copy collections."""
         for start in range(0, len(points), 256):
             batch = points[start:start + 256]
             self._call(lambda b=batch: self.client.upsert(self.collection, b))
