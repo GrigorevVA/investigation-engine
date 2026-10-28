@@ -1,6 +1,6 @@
 """Own keyword search: Okapi BM25.
 
-Tests: tests/test_bm25.py. Walkthrough: docs/WALKTHROUGH.md.
+Tests: tests/test_bm25.py.
 
 Formula for one query term t and one chunk d:
 

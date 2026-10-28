@@ -14,3 +14,7 @@ data/corpus_subset.jsonl
 data/qdrant_subset/
 data/*.log
 notes/
+
+# kept locally, not published
+CLAUDE.md
+docs/WALKTHROUGH.md

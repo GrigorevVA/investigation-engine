@@ -7,7 +7,7 @@ Update after every notable step.
 
 | Tool | Used for |
 |---|---|
-| Claude (claude.ai, agent mode) | Reading the task, 6-day plan, stack and rules (`CLAUDE.md`), first project skeleton |
+| Claude (claude.ai, agent mode) | Reading the task, 6-day plan, stack and rules for the AI assistant, first project skeleton |
 | Claude Code (VS Code extension, model Claude Opus 5.5) | Everything from 2026-10-27: algorithms, data and indexing, evaluation runs and report, memory work, deployment, docs; from 2026-10-28 also defence preparation (explanations in Russian, check questions, a private cheat sheet) |
 
 No other AI tools (Copilot, Cursor, ...) were used.
@@ -22,7 +22,7 @@ No other AI tools (Copilot, Cursor, ...) were used.
 
 ## Rules we followed
 
-- One module at a time, with an explanation and defence questions (see `CLAUDE.md`).
+- One module at a time, with an explanation and defence questions.
 - The plan was for the author to write the own algorithms (BM25, Reciprocal Rank Fusion) and the retrieval metrics
   (Recall@K, MRR, citation accuracy) against failing spec tests. Because of the deadline the author changed this
   on 2026-10-27: the AI wrote them. Since 2026-10-28 the author studies this code line by line, one module per session,
@@ -36,7 +36,7 @@ No other AI tools (Copilot, Cursor, ...) were used.
 
 | Date | Asked for | AI produced | Decided or done by the author |
 |---|---|---|---|
-| 2026-10-23 | Read the task, plan for 6 days | Plan, stack, rules (`CLAUDE.md`), day-by-day checklist | Chose HotpotQA and free tiers |
+| 2026-10-23 | Read the task, plan for 6 days | Plan, stack, rules for the AI assistant, day-by-day checklist | Chose HotpotQA and free tiers |
 | 2026-10-27 | Project skeleton | Loaders, chunking, dedup, pipeline, Qdrant wrapper, LLM client with retries, planner, answer loop with tool calling, FastAPI, Gradio UI, scripts, 72 tests (17 of them a spec for the author's algorithms), ADRs | Accepted the skeleton; no manual code changes |
 | 2026-10-27 | Implement BM25, RRF, metrics | `BM25Index` with an inverted index, `reciprocal_rank_fusion`, `recall_at_k`, `reciprocal_rank`, `citation_accuracy`; all 17 spec tests green | Decided to delegate this to the AI because of the deadline (originally reserved for the author). Line-by-line study: BM25 and RRF done on 2026-10-28 (check questions answered, mistakes corrected); metrics and the investigation loop next |
 | 2026-10-27 | Get the data and index it | Switched the download to the Hugging Face copy (the CMU mirror no longer resolves); measured embedding speed (5–7 docs/s on an i5-10210U) and added length-sorted batching (12.5 docs/s); reproducible 10k subset for the chunking comparison; local → Qdrant Cloud copy script | Created the GitHub repository, the Qdrant Cloud cluster and the Groq key; filled `.env` |

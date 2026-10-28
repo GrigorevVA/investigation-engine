@@ -1,6 +1,6 @@
 """Evaluation metrics.
 
-Tests: tests/test_metrics.py. Walkthrough: docs/WALKTHROUGH.md.
+Tests: tests/test_metrics.py.
 All ids here are document ids (several chunks of one document count as one document).
 """
 import re
