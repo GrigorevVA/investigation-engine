@@ -8,7 +8,7 @@ Update after every notable step.
 | Tool | Used for |
 |---|---|
 | Claude (claude.ai, agent mode) | Reading the task, 6-day plan, stack and rules (`CLAUDE.md`), first project skeleton |
-| Claude Code (VS Code extension, model Claude Opus 5.5) | Everything from 2026-10-27: algorithms, data and indexing, evaluation runs and report, memory work, deployment, docs |
+| Claude Code (VS Code extension, model Claude Opus 5.5) | Everything from 2026-10-27: algorithms, data and indexing, evaluation runs and report, memory work, deployment, docs; from 2026-10-28 also defence preparation (explanations in Russian, check questions, a private cheat sheet) |
 
 No other AI tools (Copilot, Cursor, ...) were used.
 
@@ -25,7 +25,8 @@ No other AI tools (Copilot, Cursor, ...) were used.
 - One module at a time, with an explanation and defence questions (see `CLAUDE.md`).
 - The plan was for the author to write the own algorithms (BM25, Reciprocal Rank Fusion) and the retrieval metrics
   (Recall@K, MRR, citation accuracy) against failing spec tests. Because of the deadline the author changed this
-  on 2026-10-27: the AI wrote them. The author's line-by-line study of this code for the defence is the next step.
+  on 2026-10-27: the AI wrote them. Since 2026-10-28 the author studies this code line by line, one module per session,
+  answering check questions without hints before moving on.
 - Every number in reports comes from `eval/run_eval.py`, not from AI text.
 - "Done" from the agent is not trusted: each change landed with a passing test (86 tests at the end of 2026-10-27),
   and the live service was checked with real questions through the public URL.
@@ -37,11 +38,14 @@ No other AI tools (Copilot, Cursor, ...) were used.
 |---|---|---|---|
 | 2026-10-23 | Read the task, plan for 6 days | Plan, stack, rules (`CLAUDE.md`), day-by-day checklist | Chose HotpotQA and free tiers |
 | 2026-10-27 | Project skeleton | Loaders, chunking, dedup, pipeline, Qdrant wrapper, LLM client with retries, planner, answer loop with tool calling, FastAPI, Gradio UI, scripts, 72 tests (17 of them a spec for the author's algorithms), ADRs | Accepted the skeleton; no manual code changes |
-| 2026-10-27 | Implement BM25, RRF, metrics | `BM25Index` with an inverted index, `reciprocal_rank_fusion`, `recall_at_k`, `reciprocal_rank`, `citation_accuracy`; all 17 spec tests green | Decided to delegate this to the AI because of the deadline (originally reserved for the author). Line-by-line study before the defence: pending |
+| 2026-10-27 | Implement BM25, RRF, metrics | `BM25Index` with an inverted index, `reciprocal_rank_fusion`, `recall_at_k`, `reciprocal_rank`, `citation_accuracy`; all 17 spec tests green | Decided to delegate this to the AI because of the deadline (originally reserved for the author). Line-by-line study: BM25 and RRF done on 2026-10-28 (check questions answered, mistakes corrected); metrics and the investigation loop next |
 | 2026-10-27 | Get the data and index it | Switched the download to the Hugging Face copy (the CMU mirror no longer resolves); measured embedding speed (5–7 docs/s on an i5-10210U) and added length-sorted batching (12.5 docs/s); reproducible 10k subset for the chunking comparison; local → Qdrant Cloud copy script | Created the GitHub repository, the Qdrant Cloud cluster and the Groq key; filled `.env` |
 | 2026-10-27 | Evaluate and pick a model | Retrieval runs (vector / BM25 / hybrid, two chunkings), full runs on two Groq models, error analysis and `docs/EVALUATION.md` from the result files; found and handled Groq `tool_use_failed`; ADR 0007, 0009 | Accepted Qwen as the default on the evaluation evidence |
 | 2026-10-27 | Deploy for free | HF Docker Spaces turned out to need PRO (402). Measured memory (~625 MB) and cut it to a ~407 MB peak for Render's 512 MB: numpy CSR BM25, no texts in memory, HTML page instead of Gradio; `render.yaml`; ADR 0008. Live at https://investigation-engine-l74q.onrender.com | Chose Render over Oracle Cloud and Koyeb from the options the AI laid out; created the Render service from the Blueprint and entered the secrets |
 | 2026-10-28 | Explain why some variables have one-letter names | Audit of all short names: kept the formula symbols (`k1`, `b`, `tf`, `df`, `n`, `k`) and one-line loop variables; renamed the unclear ones (`l` → `label`, `s` → `settings`, `t` → `term_id`, argparse `p`/`r`/`c`), split the nested comprehension in `summarize` into `_type_summary`; 86 tests green, saved summaries reproduce exactly | Asked the question that started the cleanup |
+| 2026-10-28 | "I don't understand what we built and why": a detailed explanation | A private Russian cheat sheet (`notes/`, not in the repository, also as PDF): glossary, the path of one question, every module, BM25 line by line, decisions, key numbers, defence questions; then lessons on BM25 and RRF with check questions | Answered the check questions; mixed up k1 (repeats inside one chunk) and idf (how many chunks contain the word) and corrected it after the explanation |
+| 2026-10-28 | "Did you use Clean Code and OOP?" | Audit of the code: classes only where there is state, a `Protocol` interface for embedders, dependency injection through constructors, no function over 40 lines (checked with a script); named the weak spots (`Engine` does too much, no interface for `QdrantStore`) | Asked the question |
+| 2026-10-28 | "Is there anything extra on GitHub?" | Check of all tracked files and the whole history: no keys, no personal data or local paths, no document metadata with names; listed what to fix before submission | Asked for the check; asked the AI to finish this report |
 
 ## Where AI was wrong or needed correction
 
@@ -52,6 +56,8 @@ No other AI tools (Copilot, Cursor, ...) were used.
 - The AI's first memory plan was not enough: removing texts made the peak worse until the build-time copies were removed and Gradio was dropped. Measuring each step, not estimating, found the real costs.
 - The first Render deploy crashed: `lru_cache` did not stop a request from building a second engine while the boot thread was building one (two BM25 indexes in 512 MB). Fixed with a lock and 503 while loading.
 - `.gitignore` missed the subset Qdrant folder and logs; one log file got committed and was removed.
+- The AI broke its own Clean Code rule: names like `l`, `s`, `t` and a nested one-line comprehension in `run_eval.py`.
+  Nobody noticed until the author asked why some variables have one-letter names.
 
 ## Security incident
 
@@ -61,8 +67,14 @@ hosting dashboard, never into a chat.
 
 ## What I would not delegate next time
 
-_Draft from the facts above, to be rewritten by the author after the defence preparation:_
+- **The own algorithms (BM25, RRF, metrics).** They are what the defence asks about most. Writing them myself
+  would have been faster than learning someone else's version line by line under time pressure.
+- **The whole build at once.** The AI built the project in two days, and at the end I needed a cheat sheet to
+  understand my own system. Next time: one module at a time, and I explain each module back before the next one starts.
+- **Code review as it lands.** I would read every change before accepting it. The unclear variable names were
+  found only at the end, after the code had passed all tests.
+- **Checking the platform first.** The hosting was chosen before its current free-tier limits were checked;
+  the Hugging Face Spaces change cost a redesign late in the project.
 
-- The own algorithms (BM25, RRF, metrics). They are the part the defence asks about most, and writing them is
-  faster than reverse-engineering someone else's version under time pressure.
-- Choosing the hosting before checking its current free-tier limits; the HF Spaces change cost a redesign late in the project.
+What worked and I would delegate again: measuring instead of estimating (memory, speed), handling external service
+errors, running the evaluation and turning its result files into the report, and searching for secrets before publishing.
